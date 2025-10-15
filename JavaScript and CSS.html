@@ -1,0 +1,159 @@
+<style id="smooth-rolling-counter">
+  .custom-counter {
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+    line-height: 1em;
+    overflow: hidden;
+  }
+
+  .custom-counter .digit {
+    display: inline-block;
+    position: relative;
+    width: 0.6em;
+    height: 1em;
+    overflow: hidden;
+    vertical-align: baseline;
+  }
+
+  .custom-counter .digit span {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: 0;
+    transform: translateY(0%);
+    transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+    font-variant-numeric: tabular-nums;
+    line-height: 1em;
+    will-change: transform;
+  }
+
+  .custom-counter .prefix,
+  .custom-counter .postfix {
+    display: inline-block;
+    vertical-align: baseline;
+    line-height: 1em;
+  }
+
+  .custom-counter .prefix { margin-right: 0.1em; }
+
+  .custom-counter .postfix {
+    margin-left: 0.1em;
+    font-size: 0.6em;
+    transform: translateY(-0.4em);
+  }
+</style>
+
+<script>
+(function(){
+  function easeOutCubic(t){return 1 - Math.pow(1 - t, 3);}
+
+  function buildCounter(counter, digits){
+    counter.innerHTML = '';
+    const prefix = counter.dataset.prefix || '';
+    const postfix = counter.dataset.postfix || '';
+
+    if(prefix){
+      const pre = document.createElement('span');
+      pre.className = 'prefix';
+      pre.textContent = prefix;
+      counter.appendChild(pre);
+    }
+
+    const digitEls = [];
+    for(let i = 0; i < digits; i++){
+      const d = document.createElement('div');
+      d.className = 'digit';
+      for(let loop = 0; loop < 2; loop++){
+        for(let n = 0; n < 10; n++){
+          const span = document.createElement('span');
+          span.textContent = n;
+          span.style.top = `${(loop * 10 + n) * 100}%`;
+          d.appendChild(span);
+        }
+      }
+      counter.appendChild(d);
+      digitEls.push(d);
+    }
+
+    if(postfix){
+      const post = document.createElement('span');
+      post.className = 'postfix';
+      post.textContent = postfix;
+      counter.appendChild(post);
+    }
+
+    return digitEls;
+  }
+
+  function animateRollingDigits(digitEls, start, end, duration){
+    const startTime = performance.now();
+    function frame(ts){
+      const progress = Math.min((ts - startTime) / duration, 1);
+      const eased = easeOutCubic(progress);
+      const currentValue = start + (end - start) * eased;
+      const strVal = Math.floor(currentValue).toString().padStart(digitEls.length, '0');
+
+      for(let i = 0; i < digitEls.length; i++){
+        const target = parseInt(strVal[i]);
+        const offset = -(target + 10) * 100;
+        digitEls[i].querySelectorAll('span').forEach(span => {
+          span.style.transform = `translateY(${offset}%)`;
+        });
+      }
+
+      if(progress < 1) requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function initRollingCounters(){
+    document.querySelectorAll('.custom-counter').forEach(counter => {
+      const start = parseFloat(counter.dataset.start || 0);
+      const end = parseFloat(counter.dataset.end || 1000);
+      const duration = parseInt(counter.dataset.duration || 3000);
+
+      const font = counter.dataset.font || 'inherit';
+      const size = counter.dataset.size || '48px';
+      const weight = counter.dataset.weight || '700';
+      const color = counter.dataset.color || '#000';
+      const spacing = counter.dataset.spacing || '2px';
+
+      counter.style.fontFamily = font;
+      counter.style.fontSize = size;
+      counter.style.fontWeight = weight;
+      counter.style.color = color;
+      counter.style.letterSpacing = spacing;
+
+      let hasPlayed = false;
+
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if ((entry.isIntersecting || entry.intersectionRatio > 0) && !hasPlayed) {
+            hasPlayed = true;
+            const cleanNum = parseInt(end.toString().replace(/\D/g, ''));
+            const digits = cleanNum.toString().length;
+            const digitEls = buildCounter(counter, digits);
+            animateRollingDigits(digitEls, start, cleanNum, duration);
+            observer.unobserve(counter);
+          }
+        });
+      }, { threshold: 0.1 });
+
+      observer.observe(counter);
+
+      window.addEventListener('scroll', () => {
+        if(!hasPlayed && counter.getBoundingClientRect().top < window.innerHeight){
+          hasPlayed = true;
+          const cleanNum = parseInt(end.toString().replace(/\D/g, ''));
+          const digits = cleanNum.toString().length;
+          const digitEls = buildCounter(counter, digits);
+          animateRollingDigits(digitEls, start, cleanNum, duration);
+        }
+      }, { passive: true });
+    });
+  }
+
+  window.addEventListener('load', initRollingCounters);
+})();
+</script>
